@@ -1,0 +1,8 @@
+Name,Email,Company,Notes
+"Smith, Ann",ann.smith@example.com,"Acme, Inc",Met at SaaStr
+Bob Jones,BOB.JONES@EXAMPLE.COM,Beta Labs,
+Bob Jones (dup),bob.jones@example.com,Beta Labs,duplicate in a different case
+Cara Diaz,cara@example.com,Gamma,
+No Email,,Delta,this row has no address and is skipped
+Dan Lee,dan.lee@example.com,"Epsilon ""Labs""",quotes inside a quoted field
+Eve Park,eve.park@example.com,Zeta,

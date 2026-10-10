@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (typecheck, tests, throttling)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: mailflow
+          POSTGRES_PASSWORD: mailflow
+          POSTGRES_DB: mailflow
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U mailflow -d mailflow"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+      elasticsearch:
+        image: docker.elastic.co/elasticsearch/elasticsearch:8.19.2
+        env:
+          discovery.type: single-node
+          xpack.security.enabled: 'false'
+          ES_JAVA_OPTS: -Xms512m -Xmx512m
+          cluster.routing.allocation.disk.threshold_enabled: 'false'
+        ports: ['9200:9200']
+        options: >-
+          --health-cmd "curl -fs 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s' >/dev/null"
+          --health-interval 10s --health-timeout 10s --health-retries 30
+
+    # Not secrets: throwaway values for the test run. The tests fake Google, Slack and Ethereal.
+    # Tests switch to their own database (mailflow_test), Redis db 1 and index emails_test.
+    # Every value is quoted: YAML would turn an unquoted all-digit key into a number.
+    env:
+      NODE_ENV: 'test'
+      DATABASE_URL: 'postgres://mailflow:mailflow@localhost:5432/mailflow'
+      REDIS_URL: 'redis://localhost:6379'
+      ELASTICSEARCH_URL: 'http://localhost:9200'
+      SESSION_SECRET: 'ci-only-session-secret-not-used-anywhere-else-0000'
+      ENCRYPTION_KEY: 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2'
+      GOOGLE_CLIENT_ID: 'ci.apps.googleusercontent.com'
+      GOOGLE_CLIENT_SECRET: 'ci'
+      GOOGLE_REDIRECT_URI: 'http://localhost:4000/api/auth/google/callback'
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Tests (unit + integration)
+        run: npm test
+      - name: Throttling tests
+        run: npm run test:throttling
+      # Not run here: npm run test:ethereal. It creates real mailboxes on ethereal.email and
+      # sends real mail through it, so it depends on an outside service (see README → Testing).
+
+  frontend:
+    name: Frontend (typecheck + build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: Typecheck + build
+        run: npm run build

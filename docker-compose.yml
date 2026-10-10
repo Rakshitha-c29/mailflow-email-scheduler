@@ -1,0 +1,66 @@
+# Local infrastructure for the MailFlow scheduler: `docker compose up -d`
+# The API and worker run on the host (`npm run dev`, `npm run dev:worker` in backend/).
+# Ports bind to 127.0.0.1 only: none of these services has auth enabled for local dev.
+
+name: mailflow
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mailflow
+      POSTGRES_PASSWORD: mailflow
+      POSTGRES_DB: mailflow
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mailflow -d mailflow"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # appendonly: every job/rate-limit write is logged to disk, so a Redis restart doesn't
+    #             lose scheduled jobs (fsync every second: at most ~1s of writes at risk,
+    #             and boot-time reconciliation re-adds anything Postgres still has).
+    # noeviction: BullMQ's keys must never be evicted under memory pressure; Redis should
+    #             refuse writes (loud failure) rather than silently drop queued jobs.
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec", "--maxmemory-policy", "noeviction"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.19.2
+    restart: unless-stopped
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"        # local dev only
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+      # Laptops are often >90% full; without this ES silently turns the index read-only.
+      cluster.routing.allocation.disk.threshold_enabled: "false"
+    ports:
+      - "127.0.0.1:9200:9200"
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s' >/dev/null"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+
+volumes:
+  pgdata:
+  redisdata:
+  esdata:

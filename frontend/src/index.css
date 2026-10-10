@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+/* Design tokens sampled from the design exports (the rest is Tailwind's default palette,
+   which the designs use: gray-900 text, orange-100 pills, …). */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --color-brand: #00a63e;
+  --color-brand-hover: #008f35;
+  --color-brand-soft: #e5f6ec;
+  --color-brand-soft-hover: #d6f0e0;
+
+  --color-ink: #1f1f1f;
+  --color-muted: #6b6b6b;
+  --color-faint: #a3a3a3;
+  --color-field: #f4f7f5; /* inputs, search, user card */
+  --color-line: #ececec;
+}
+
+html, body, #root { height: 100%; }
+body { @apply bg-white font-sans text-ink antialiased; }
+
+/* Rendered email content (detail view). Tailwind's preflight strips element spacing,
+   so restore readable email typography here: 15px / 24px, 20px between paragraphs. */
+.email-body { @apply text-[15px] leading-6 text-gray-800 break-words; }
+.email-body > :first-child { margin-top: 0; }
+.email-body p, .email-body ul, .email-body ol, .email-body blockquote, .email-body pre, .email-body table { margin-bottom: 20px; }
+.email-body h1 { @apply mb-4 text-2xl font-semibold; }
+.email-body h2 { @apply mb-3 text-xl font-semibold; }
+.email-body h3 { @apply mb-3 text-lg font-semibold; }
+.email-body ul { @apply list-disc pl-6; }
+.email-body ol { @apply list-decimal pl-6; }
+.email-body a { @apply text-brand underline; }
+.email-body blockquote { @apply border-l-2 border-gray-200 pl-4 text-gray-600; }
+.email-body img { max-width: 100%; height: auto; }
+.email-body pre { @apply overflow-x-auto rounded-md bg-field p-3 text-sm; }
+
+/* Compose editor (TipTap/ProseMirror). Shares .email-body typography, so what you write
+   looks the way the detail view will show it. */
+.compose-editor { min-height: 260px; outline: none; }
+.compose-editor p:last-child { margin-bottom: 0; }
+.compose-editor li > p { margin-bottom: 0; }
